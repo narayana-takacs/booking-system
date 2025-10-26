@@ -9,7 +9,13 @@
       "Bash(git push:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nAdd comprehensive project status and roadmap document\n\n- Document all completed components (workflow, infrastructure, integrations)\n- Identify pending deployment tasks with clear action items\n- Outline 5-phase deployment roadmap with time estimates\n- List optional enhancements (availability API, daily digest, cancellations)\n- Include risk assessment and success metrics\n- Provide prioritized next actions and unresolved questions\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(node scripts/generate-secrets.js:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nAdd production deployment documentation and tools\n\n- Add scripts/generate-secrets.js for secure credential generation\n- Add infra/.env.production.template for production configuration\n- Add docs/DEPLOYMENT.md with Docker-focused deployment guide\n- Clarify that entire system runs in containers (no complex setup needed)\n- Simplify deployment to: clone, configure .env, docker compose up\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd production deployment documentation and tools\n\n- Add scripts/generate-secrets.js for secure credential generation\n- Add infra/.env.production.template for production configuration\n- Add docs/DEPLOYMENT.md with Docker-focused deployment guide\n- Clarify that entire system runs in containers (no complex setup needed)\n- Simplify deployment to: clone, configure .env, docker compose up\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(curl:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker exec:*)",
+      "Bash(node workflows/generate_workflow.js:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

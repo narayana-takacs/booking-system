@@ -76,11 +76,14 @@ if (useStub) {
     let offset;
     const records = [];
     do {
-      const searchParams = new URLSearchParams({ pageSize: '100', ...params });
-      if (offset) searchParams.set('offset', offset);
+      const queryParams = { pageSize: '100', ...params };
+      if (offset) queryParams.offset = offset;
+      const queryString = Object.entries(queryParams)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .join('&');
       const response = await this.helpers.httpRequest({
         method: 'GET',
-        url: `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?${searchParams.toString()}`,
+        url: `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?${queryString}`,
         headers,
         json: true,
       });
