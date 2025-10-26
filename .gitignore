@@ -1,0 +1,35 @@
+# Environment files
+.env
+infra/.env
+
+# Node modules
+node_modules/
+
+# n8n data
+n8n_data/
+
+# Database files
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+execution_last.txt
+workflow_nodes.json
+workflow_nodes_latest.json

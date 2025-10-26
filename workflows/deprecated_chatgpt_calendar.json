@@ -1,0 +1,611 @@
+{
+  "name": "ChatGPT Google Calendar Bridge",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatgpt-calendar",
+        "responseMode": "lastNode",
+        "options": {
+          "responseContentType": "application/json"
+        }
+      },
+      "id": "Webhook_ChatGPT",
+      "name": "Receive ChatGPT Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        0
+      ],
+      "webhookId": "chatgptCalendarWebhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "const body = $json.body ?? {};\\nconst messages = Array.isArray(body.messages) ? body.messages : body.conversation;\\nif (!Array.isArray(messages) || messages.length === 0) {\\n  throw new Error('Request must include messages array.');\\n}\\nconst metadata = body.metadata ?? {};\\nreturn [{ json: { messages, metadata } }];"
+      },
+      "id": "Function_Normalize",
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "jsonParameters": true,
+        "options": {
+          "response": {
+            "fullResponse": false
+          }
+        },
+        "bodyParametersJson": "={\\"model\\":\\"gpt-4.1-mini\\",\\"messages\\":$json.messages,\\"functions\\":[{\\"name\\":\\"calendar_action\\",\\"description\\":\\"Return structured calendar intent payloads for Google Calendar operations.\\",\\"parameters\\":{\\"type\\":\\"object\\",\\"required\\":[\\"intent\\"],\\"properties\\":{\\"intent\\":{\\"type\\":\\"string\\",\\"enum\\":[\\"list_events\\",\\"create_event\\",\\"update_event\\",\\"delete_event\\",\\"freebusy\\",\\"confirm_action\\"]},\\"calendarId\\":{\\"type\\":\\"string\\"},\\"timeMin\\":{\\"type\\":\\"string\\",\\"description\\":\\"ISO 8601 start.\\"},\\"timeMax\\":{\\"type\\":\\"string\\"},\\"eventId\\":{\\"type\\":\\"string\\"},\\"summary\\":{\\"type\\":\\"string\\"},\\"description\\":{\\"type\\":\\"string\\"},\\"location\\":{\\"type\\":\\"string\\"},\\"start\\":{\\"type\\":\\"string\\"},\\"end\\":{\\"type\\":\\"string\\"},\\"attendees\\":{\\"type\\":\\"array\\",\\"items\\":{\\"type\\":\\"string\\"}},\\"notify\\":{\\"type\\":\\"boolean\\",\\"default\\":false},\\"confirmationToken\\":{\\"type\\":\\"string\\"},\\"notes\\":{\\"type\\":\\"string\\"}}}}],\\"function_call\\":\\"auto\\"}"
+      },
+      "id": "HTTPRequest_OpenAI",
+      "name": "ChatGPT Planner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "<replace-with-openai-credential-id>",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const choice = $json.choices?.[0];\\nif (!choice) {\\n  throw new Error('OpenAI response missing choices');\\n}\\nconst message = choice.message ?? {};\\nconst toolCall = message.function_call || (message.tool_calls && message.tool_calls[0]);\\nif (!toolCall) {\\n  return [{ json: { intent: 'no_action', assistantReply: message.content ?? '' } }];\\n}\\nconst args = toolCall.arguments || toolCall.function?.arguments;\\nconst parsed = args ? JSON.parse(args) : {};\\nreturn [{ json: { intent: parsed.intent, payload: parsed, assistantReply: message.content ?? '', raw: $json } }];"
+      },
+      "id": "Function_ParseTool",
+      "name": "Parse Tool Call",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "propertyName": "intent"
+      },
+      "id": "Switch_Intent",
+      "name": "Route by Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ],
+      "settings": {
+        "cases": [
+          {
+            "value": "list_events"
+          },
+          {
+            "value": "create_event"
+          },
+          {
+            "value": "update_event"
+          },
+          {
+            "value": "delete_event"
+          },
+          {
+            "value": "freebusy"
+          },
+          {
+            "value": "confirm_action"
+          }
+        ]
+      }
+    },
+    {
+      "parameters": {
+        "calendar": "={{$json.payload.calendarId || 'primary'}}",
+        "operation": "list",
+        "returnAll": false,
+        "options": {
+          "timeMin": "={{$json.payload.timeMin}}",
+          "timeMax": "={{$json.payload.timeMax}}",
+          "maxResults": "10",
+          "singleEvents": true,
+          "orderBy": "startTime"
+        }
+      },
+      "id": "Google_List",
+      "name": "List Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 3,
+      "position": [
+        460,
+        -180
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "<replace-with-google-credential-id>",
+          "name": "Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": "={{$json.payload.calendarId || 'primary'}}",
+        "operation": "create",
+        "start": "={{$json.payload.start}}",
+        "end": "={{$json.payload.end}}",
+        "summary": "={{$json.payload.summary}}",
+        "description": "={{$json.payload.description}}",
+        "location": "={{$json.payload.location}}",
+        "options": {
+          "attendees": "={{$json.payload.attendees}}",
+          "sendUpdates": "={{$json.payload.notify ? 'all' : 'none'}}"
+        }
+      },
+      "id": "Google_Create",
+      "name": "Create Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 3,
+      "position": [
+        460,
+        -60
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "<replace-with-google-credential-id>",
+          "name": "Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": "={{$json.payload.calendarId || 'primary'}}",
+        "operation": "update",
+        "eventId": "={{$json.payload.eventId}}",
+        "updateFields": {
+          "start": "={{$json.payload.start}}",
+          "end": "={{$json.payload.end}}",
+          "summary": "={{$json.payload.summary}}",
+          "description": "={{$json.payload.description}}",
+          "location": "={{$json.payload.location}}",
+          "attendees": "={{$json.payload.attendees}}",
+          "sendUpdates": "={{$json.payload.notify ? 'all' : 'none'}}"
+        }
+      },
+      "id": "Google_Update",
+      "name": "Update Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 3,
+      "position": [
+        460,
+        60
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "<replace-with-google-credential-id>",
+          "name": "Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": "={{$json.payload.calendarId || 'primary'}}",
+        "operation": "delete",
+        "eventId": "={{$json.payload.eventId}}",
+        "options": {
+          "sendUpdates": "={{$json.payload.notify ? 'all' : 'none'}}"
+        }
+      },
+      "id": "Google_Delete",
+      "name": "Delete Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 3,
+      "position": [
+        460,
+        180
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "<replace-with-google-credential-id>",
+          "name": "Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const payload = $json.payload || {};\\nreturn [{ json: { calendar: payload.calendarId || 'primary', timeMin: payload.timeMin, timeMax: payload.timeMax, items: payload.attendees ?? [] } }];"
+      },
+      "id": "Function_BuildFreeBusy",
+      "name": "Build FreeBusy Request",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/freeBusy",
+        "authentication": "predefinedCredentialType",
+        "jsonParameters": true,
+        "options": {
+          "response": {
+            "fullResponse": false
+          }
+        },
+        "bodyParametersJson": "={\\"timeMin\\":$json.timeMin,\\"timeMax\\":$json.timeMax,\\"items\\":[{\\"id\\":$json.calendar}]}"
+      },
+      "id": "HTTP_FreeBusy",
+      "name": "FreeBusy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        700,
+        300
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "<replace-with-google-credential-id>",
+          "name": "Google OAuth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const payload = $json.payload || {};\\nreturn [{ json: { status: 'pending_confirmation', intent: payload.intent, confirmationToken: payload.confirmationToken, instructions: 'Awaiting user confirmation before executing calendar change.' } }];"
+      },
+      "id": "Function_Confirmation",
+      "name": "Pending Confirmation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        460,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const events = $json.items || $json.events || [];\\nif (!Array.isArray(events) || events.length === 0) {\\n  return [{ json: { status: 'ok', message: 'No events found in this window.' } }];\\n}\\nconst summary = events.map(event => {\\n  const start = event.start?.dateTime || event.start?.date || 'n/a';\\n  const end = event.end?.dateTime || event.end?.date || 'n/a';\\n  return `? ${event.summary || 'Untitled'} ? ${start} to ${end}`;\\n}).join('\\n');\\nreturn [{ json: { status: 'ok', message: summary } }];"
+      },
+      "id": "Function_FormatList",
+      "name": "Format List Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        700,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const data = $json || {};\\nreturn [{ json: { status: 'ok', message: `Event created: ${data.summary || 'Untitled'} (${data.id})` } }];"
+      },
+      "id": "Function_FormatCreate",
+      "name": "Format Create Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        700,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const data = $json || {};\\nreturn [{ json: { status: 'ok', message: `Event updated: ${data.summary || 'Untitled'} (${data.id})` } }];"
+      },
+      "id": "Function_FormatUpdate",
+      "name": "Format Update Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        700,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const payload = $json.payload || {};\\nreturn [{ json: { status: 'ok', message: `Event deleted: ${payload.eventId}` } }];"
+      },
+      "id": "Function_FormatDelete",
+      "name": "Format Delete Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        700,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const body = $json.calendars || {};\\nconst first = Object.values(body)[0] || {};\\nconst busy = first.busy || [];\\nif (!busy.length) {\\n  return [{ json: { status: 'ok', message: 'Calendar is fully available in the requested window.' } }];\\n}\\nconst summary = busy.map(slot => `? Busy ${slot.start} ? ${slot.end}`).join('\\n');\\nreturn [{ json: { status: 'ok', message: summary } }];"
+      },
+      "id": "Function_FormatFreeBusy",
+      "name": "Format FreeBusy Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        940,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ json: { status: 'pending_confirmation', message: 'Action awaiting confirmation.', confirmationToken: $json.confirmationToken } }];"
+      },
+      "id": "Function_FormatConfirmation",
+      "name": "Format Confirmation Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        700,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\\"status\\":$json.status,\\"message\\":$json.message,\\"confirmationToken\\":$json.confirmationToken}"
+      },
+      "id": "Respond_Webhook",
+      "name": "Respond to ChatGPT",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        980,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Receive ChatGPT Request": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "ChatGPT Planner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatGPT Planner": {
+      "main": [
+        [
+          {
+            "node": "Parse Tool Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Tool Call": {
+      "main": [
+        [
+          {
+            "node": "Route by Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Intent": {
+      "main": [
+        [
+          {
+            "node": "List Events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build FreeBusy Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pending Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Events": {
+      "main": [
+        [
+          {
+            "node": "Format List Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Event": {
+      "main": [
+        [
+          {
+            "node": "Format Create Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Event": {
+      "main": [
+        [
+          {
+            "node": "Format Update Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Event": {
+      "main": [
+        [
+          {
+            "node": "Format Delete Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build FreeBusy Request": {
+      "main": [
+        [
+          {
+            "node": "FreeBusy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FreeBusy": {
+      "main": [
+        [
+          {
+            "node": "Format FreeBusy Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pending Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Format Confirmation Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format List Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to ChatGPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Create Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to ChatGPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Update Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to ChatGPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Delete Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to ChatGPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format FreeBusy Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to ChatGPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Confirmation Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to ChatGPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "id": "chatgpt-google-calendar",
+  "pinData": {}
+}

@@ -1,0 +1,59 @@
+version: "3.8"
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:?set}
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=5678
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Etc/UTC}
+      - DB_TYPE=${DB_TYPE:-postgresdb}
+      - DB_POSTGRESDB_HOST=n8n-postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-n8n}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-n8n}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - AIRTABLE_PAT=${AIRTABLE_PAT:-}
+      - AIRTABLE_BASE_ID=${AIRTABLE_BASE_ID:-}
+      - AIRTABLE_TABLE_AVAILABILITY=${AIRTABLE_TABLE_AVAILABILITY:-Availability}
+      - AIRTABLE_TABLE_BOOKINGS=${AIRTABLE_TABLE_BOOKINGS:-Bookings}
+      - AIRTABLE_TABLE_CLIENTS=${AIRTABLE_TABLE_CLIENTS:-Clients}
+      - AIRTABLE_USE_STUB=${AIRTABLE_USE_STUB:-false}
+      - PROVIDER_ALERT_EMAIL=${PROVIDER_ALERT_EMAIL:-provider@example.com}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - n8n-postgres
+      - mailpit
+  n8n-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER:-n8n}
+      - POSTGRES_DB=${POSTGRES_DB:-n8n}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    environment:
+      - MP_SMTP_AUTH_ACCEPT_ANY=true
+      - MP_SMTP_AUTH_ALLOW_INSECURE=true
+volumes:
+  n8n_data:
+  postgres_data:
