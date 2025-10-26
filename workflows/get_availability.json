@@ -1,0 +1,126 @@
+{
+  "name": "Get Available Slots",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "get-availability",
+        "responseMode": "lastNode",
+        "options": {
+          "responseContentType": "application/json"
+        }
+      },
+      "name": "Receive Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        0
+      ],
+      "webhookId": "getAvailability"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "config.airtablePat",
+              "value": "={{$env[\"AIRTABLE_PAT\"]}}"
+            },
+            {
+              "name": "config.airtableBaseId",
+              "value": "={{$env[\"AIRTABLE_BASE_ID\"]}}"
+            },
+            {
+              "name": "config.airtableAvailabilityTable",
+              "value": "={{$env[\"AIRTABLE_TABLE_AVAILABILITY\"]}}"
+            },
+            {
+              "name": "config.airtableBookingsTable",
+              "value": "={{$env[\"AIRTABLE_TABLE_BOOKINGS\"]}}"
+            }
+          ]
+        }
+      },
+      "name": "Load Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javascript",
+        "jsCode": "// Calculate available 50-minute time slots with 10-minute breaks\r\nconst config = items[0].json.config || {};\r\nconst airtableToken = config.airtablePat || process.env.AIRTABLE_PAT;\r\nconst baseId = config.airtableBaseId || process.env.AIRTABLE_BASE_ID;\r\nconst availabilityTable = config.airtableAvailabilityTable || process.env.AIRTABLE_TABLE_AVAILABILITY;\r\nconst bookingsTable = config.airtableBookingsTable || process.env.AIRTABLE_TABLE_BOOKINGS;\r\n\r\nif (!airtableToken || !baseId || !availabilityTable || !bookingsTable) {\r\n  throw new Error('Incomplete Airtable configuration in environment variables.');\r\n}\r\n\r\nconst headers = {\r\n  Authorization: `Bearer ${airtableToken}`,\r\n};\r\n\r\nconst fetchAll = async (table, params = {}) => {\r\n  let offset;\r\n  const records = [];\r\n  do {\r\n    const queryParams = { pageSize: '100', ...params };\r\n    if (offset) queryParams.offset = offset;\r\n    const queryString = Object.entries(queryParams)\r\n      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)\r\n      .join('&');\r\n    const response = await this.helpers.httpRequest({\r\n      method: 'GET',\r\n      url: `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?${queryString}`,\r\n      headers,\r\n      json: true,\r\n    });\r\n    records.push(...(response.records || []));\r\n    offset = response.offset;\r\n  } while (offset);\r\n  return records;\r\n};\r\n\r\n// Fetch availability windows\r\nconst availabilityRecords = await fetchAll(availabilityTable);\r\n\r\n// Fetch existing bookings (accepted only)\r\nconst bookingsRecords = await fetchAll(bookingsTable, {\r\n  filterByFormula: \"{Status}='Accepted'\",\r\n});\r\n\r\n// Constants\r\nconst SESSION_DURATION_MS = 50 * 60 * 1000; // 50 minutes\r\nconst BREAK_DURATION_MS = 10 * 60 * 1000; // 10 minutes\r\nconst TOTAL_SLOT_MS = SESSION_DURATION_MS + BREAK_DURATION_MS; // 60 minutes total\r\n\r\n// Get date range (next 30 days)\r\nconst now = new Date();\r\nconst endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);\r\n\r\n// Generate all possible slots from availability windows\r\nconst allSlots = [];\r\n\r\navailabilityRecords.forEach(record => {\r\n  const startRaw = record.fields?.Start;\r\n  const endRaw = record.fields?.End;\r\n\r\n  if (!startRaw || !endRaw) return;\r\n\r\n  const windowStart = new Date(startRaw);\r\n  const windowEnd = new Date(endRaw);\r\n\r\n  // Only include future windows within date range\r\n  if (windowEnd <= now || windowStart >= endDate) return;\r\n\r\n  // Generate 50-minute slots within this window\r\n  let slotStart = new Date(Math.max(windowStart.getTime(), now.getTime()));\r\n\r\n  // Round up to next hour for clean scheduling\r\n  slotStart.setMinutes(0, 0, 0);\r\n  if (slotStart < now) {\r\n    slotStart = new Date(slotStart.getTime() + 60 * 60 * 1000);\r\n  }\r\n\r\n  while (slotStart.getTime() + SESSION_DURATION_MS <= windowEnd.getTime()) {\r\n    const slotEnd = new Date(slotStart.getTime() + SESSION_DURATION_MS);\r\n\r\n    // Check if slot overlaps with existing bookings\r\n    const isBooked = bookingsRecords.some(booking => {\r\n      const bookingStart = new Date(booking.fields?.Start);\r\n      const bookingEnd = new Date(booking.fields?.End);\r\n\r\n      // Check for overlap\r\n      return slotStart < bookingEnd && slotEnd > bookingStart;\r\n    });\r\n\r\n    if (!isBooked) {\r\n      allSlots.push({\r\n        start: slotStart.toISOString(),\r\n        end: slotEnd.toISOString(),\r\n        startLocal: slotStart.toLocaleString('en-AU', {\r\n          timeZone: 'Australia/Sydney',\r\n          weekday: 'short',\r\n          year: 'numeric',\r\n          month: 'short',\r\n          day: 'numeric',\r\n          hour: '2-digit',\r\n          minute: '2-digit'\r\n        }),\r\n      });\r\n    }\r\n\r\n    // Move to next slot (50 min session + 10 min break)\r\n    slotStart = new Date(slotStart.getTime() + TOTAL_SLOT_MS);\r\n  }\r\n});\r\n\r\n// Sort slots by start time\r\nallSlots.sort((a, b) => new Date(a.start) - new Date(b.start));\r\n\r\nreturn [{\r\n  json: {\r\n    slots: allSlots,\r\n    count: allSlots.length,\r\n  }\r\n}];\r\n"
+      },
+      "name": "Calculate Available Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {
+          "responseContentType": "application/json"
+        }
+      },
+      "name": "Respond with Slots",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Receive Request": {
+      "main": [
+        [
+          {
+            "node": "Load Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Configuration": {
+      "main": [
+        [
+          {
+            "node": "Calculate Available Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Available Slots": {
+      "main": [
+        [
+          {
+            "node": "Respond with Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Etc/UTC"
+  },
+  "pinData": {},
+  "active": false
+}

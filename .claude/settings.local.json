@@ -15,7 +15,9 @@
       "Bash(docker exec:*)",
       "Bash(node workflows/generate_workflow.js:*)",
       "Bash(python -m json.tool:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(start \"D:\\ai\\booking-system\\frontend\\booking-form.html\")",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

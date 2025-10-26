@@ -254,21 +254,18 @@
             </div>
 
             <div class="info-box">
-                💡 All times are shown in your local timezone and will be converted to UTC when submitted.
+                💡 All sessions are 50 minutes. Select from available time slots below.
             </div>
 
             <div class="form-group">
-                <label>Session Time <span class="required">*</span></label>
-                <div class="time-inputs">
-                    <div>
-                        <label for="requestedStart" style="font-weight: normal; font-size: 12px;">Start Time</label>
-                        <input type="datetime-local" id="requestedStart" name="requestedStart" required>
-                    </div>
-                    <div>
-                        <label for="requestedEnd" style="font-weight: normal; font-size: 12px;">End Time</label>
-                        <input type="datetime-local" id="requestedEnd" name="requestedEnd" required>
-                    </div>
+                <label>Select Available Time Slot <span class="required">*</span></label>
+                <div id="slotsLoading" class="loading" style="display: block; margin: 20px 0;">Loading available slots</div>
+                <div id="slotsContainer" class="availability-list" style="display: none;"></div>
+                <div id="noSlots" style="display: none; padding: 20px; text-align: center; color: #718096;">
+                    No available slots found. Please check back later.
                 </div>
+                <input type="hidden" id="requestedStart" name="requestedStart" required>
+                <input type="hidden" id="requestedEnd" name="requestedEnd" required>
             </div>
 
             <button type="submit" class="btn" id="submitBtn">Submit Booking Request</button>
@@ -278,6 +275,7 @@
     <script>
         // Configuration
         const WEBHOOK_URL = 'http://localhost:5678/webhook/booking-request';
+        const AVAILABILITY_URL = 'http://localhost:5678/webhook/get-availability';
 
         // Form elements
         const form = document.getElementById('bookingForm');
@@ -285,11 +283,109 @@
         const loadingBox = document.getElementById('loading');
         const submitBtn = document.getElementById('submitBtn');
 
-        // Set minimum datetime to now
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for timezone
-        document.getElementById('requestedStart').min = now.toISOString().slice(0, 16);
-        document.getElementById('requestedEnd').min = now.toISOString().slice(0, 16);
+        // Load available slots on page load
+        let selectedSlot = null;
+        let availableSlots = [];
+
+        async function loadAvailableSlots() {
+            const slotsLoading = document.getElementById('slotsLoading');
+            const slotsContainer = document.getElementById('slotsContainer');
+            const noSlots = document.getElementById('noSlots');
+
+            try {
+                const response = await fetch(AVAILABILITY_URL);
+                const data = await response.json();
+
+                slotsLoading.style.display = 'none';
+
+                if (data.slots && data.slots.length > 0) {
+                    availableSlots = data.slots;
+                    slotsContainer.style.display = 'block';
+                    renderSlots(data.slots);
+                } else {
+                    noSlots.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Failed to load slots:', error);
+                slotsLoading.style.display = 'none';
+                noSlots.textContent = 'Failed to load available slots. Please refresh the page.';
+                noSlots.style.display = 'block';
+            }
+        }
+
+        function renderSlots(slots) {
+            const container = document.getElementById('slotsContainer');
+            container.innerHTML = '';
+
+            // Group slots by date
+            const slotsByDate = {};
+            slots.forEach(slot => {
+                const date = new Date(slot.start);
+                const dateKey = date.toLocaleDateString('en-AU', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+
+                if (!slotsByDate[dateKey]) {
+                    slotsByDate[dateKey] = [];
+                }
+                slotsByDate[dateKey].push(slot);
+            });
+
+            // Render grouped slots
+            Object.entries(slotsByDate).forEach(([date, dateSlots]) => {
+                const dateHeader = document.createElement('div');
+                dateHeader.style.cssText = 'font-weight: 600; color: #4a5568; margin: 16px 0 8px 0; font-size: 14px;';
+                dateHeader.textContent = date;
+                container.appendChild(dateHeader);
+
+                dateSlots.forEach(slot => {
+                    const slotDiv = document.createElement('div');
+                    slotDiv.className = 'availability-slot';
+
+                    const startTime = new Date(slot.start);
+                    const endTime = new Date(slot.end);
+
+                    const timeStr = `${startTime.toLocaleTimeString('en-AU', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    })} - ${endTime.toLocaleTimeString('en-AU', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    })} (50 min)`;
+
+                    slotDiv.textContent = timeStr;
+                    slotDiv.dataset.start = slot.start;
+                    slotDiv.dataset.end = slot.end;
+
+                    slotDiv.onclick = () => selectSlot(slotDiv, slot);
+
+                    container.appendChild(slotDiv);
+                });
+            });
+        }
+
+        function selectSlot(element, slot) {
+            // Remove previous selection
+            document.querySelectorAll('.availability-slot').forEach(el => {
+                el.classList.remove('selected');
+            });
+
+            // Mark as selected
+            element.classList.add('selected');
+            selectedSlot = slot;
+
+            // Set hidden form fields
+            document.getElementById('requestedStart').value = slot.start;
+            document.getElementById('requestedEnd').value = slot.end;
+        }
+
+        // Load slots when page loads
+        loadAvailableSlots();
 
         // Handle "Other" reason selection
         const reasonSelect = document.getElementById('reasonSelect');
@@ -307,14 +403,6 @@
             }
         });
 
-        // Auto-set end time when start time changes (default to 30 minutes later)
-        document.getElementById('requestedStart').addEventListener('change', function(e) {
-            const startTime = new Date(e.target.value);
-            const endTime = new Date(startTime.getTime() + 30 * 60000); // Add 30 minutes
-
-            endTime.setMinutes(endTime.getMinutes() - endTime.getTimezoneOffset());
-            document.getElementById('requestedEnd').value = endTime.toISOString().slice(0, 16);
-        });
 
         // Show alert message
         function showAlert(message, type) {
@@ -356,12 +444,19 @@
                 ? document.getElementById('otherReason').value.trim()
                 : reasonSelect;
 
+            // Check if slot was selected
+            if (!selectedSlot) {
+                setLoading(false);
+                showAlert('Please select an available time slot', 'error');
+                return;
+            }
+
             const formData = {
                 name: document.getElementById('name').value.trim(),
                 email: document.getElementById('email').value.trim(),
                 bookingReason: bookingReason,
-                requestedStart: toUTC(document.getElementById('requestedStart').value),
-                requestedEnd: toUTC(document.getElementById('requestedEnd').value)
+                requestedStart: document.getElementById('requestedStart').value,
+                requestedEnd: document.getElementById('requestedEnd').value
             };
 
             // Validate dates
