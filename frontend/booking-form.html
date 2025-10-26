@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book a Session</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .booking-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            color: #4a5568;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="datetime-local"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .time-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .availability-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            background: #f7fafc;
+        }
+
+        .availability-slot {
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .availability-slot:hover {
+            border-color: #667eea;
+            background: #edf2f7;
+        }
+
+        .availability-slot.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+
+        .alert-warning {
+            background: #feebc8;
+            color: #744210;
+            border: 1px solid #f6ad55;
+        }
+
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-size: 14px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+
+        .info-box {
+            background: #bee3f8;
+            border: 1px solid #90cdf4;
+            color: #2c5282;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .required {
+            color: #e53e3e;
+        }
+    </style>
+</head>
+<body>
+    <div class="booking-container">
+        <h1>Book a Session</h1>
+        <p class="subtitle">Fill out the form below to request a booking</p>
+
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading">Processing your request</div>
+
+        <form id="bookingForm">
+            <div class="form-group">
+                <label for="name">Full Name <span class="required">*</span></label>
+                <input type="text" id="name" name="name" required placeholder="Enter your full name">
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address <span class="required">*</span></label>
+                <input type="email" id="email" name="email" required placeholder="your.email@example.com">
+            </div>
+
+            <div class="form-group">
+                <label for="bookingReason">Reason for Booking <span class="required">*</span></label>
+                <textarea id="bookingReason" name="bookingReason" required placeholder="Please describe the purpose of your session"></textarea>
+            </div>
+
+            <div class="info-box">
+                💡 All times are shown in your local timezone and will be converted to UTC when submitted.
+            </div>
+
+            <div class="form-group">
+                <label>Session Time <span class="required">*</span></label>
+                <div class="time-inputs">
+                    <div>
+                        <label for="requestedStart" style="font-weight: normal; font-size: 12px;">Start Time</label>
+                        <input type="datetime-local" id="requestedStart" name="requestedStart" required>
+                    </div>
+                    <div>
+                        <label for="requestedEnd" style="font-weight: normal; font-size: 12px;">End Time</label>
+                        <input type="datetime-local" id="requestedEnd" name="requestedEnd" required>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">Submit Booking Request</button>
+        </form>
+    </div>
+
+    <script>
+        // Configuration
+        const WEBHOOK_URL = 'http://localhost:5678/webhook/booking-request';
+
+        // Form elements
+        const form = document.getElementById('bookingForm');
+        const alertBox = document.getElementById('alert');
+        const loadingBox = document.getElementById('loading');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Set minimum datetime to now
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for timezone
+        document.getElementById('requestedStart').min = now.toISOString().slice(0, 16);
+        document.getElementById('requestedEnd').min = now.toISOString().slice(0, 16);
+
+        // Auto-set end time when start time changes (default to 30 minutes later)
+        document.getElementById('requestedStart').addEventListener('change', function(e) {
+            const startTime = new Date(e.target.value);
+            const endTime = new Date(startTime.getTime() + 30 * 60000); // Add 30 minutes
+
+            endTime.setMinutes(endTime.getMinutes() - endTime.getTimezoneOffset());
+            document.getElementById('requestedEnd').value = endTime.toISOString().slice(0, 16);
+        });
+
+        // Show alert message
+        function showAlert(message, type) {
+            alertBox.textContent = message;
+            alertBox.className = `alert alert-${type} show`;
+            alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Hide alert
+        function hideAlert() {
+            alertBox.className = 'alert';
+        }
+
+        // Show/hide loading
+        function setLoading(isLoading) {
+            if (isLoading) {
+                loadingBox.classList.add('show');
+                submitBtn.disabled = true;
+            } else {
+                loadingBox.classList.remove('show');
+                submitBtn.disabled = false;
+            }
+        }
+
+        // Convert local datetime to UTC ISO string
+        function toUTC(localDatetime) {
+            return new Date(localDatetime).toISOString();
+        }
+
+        // Handle form submission
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            hideAlert();
+            setLoading(true);
+
+            // Get form data
+            const formData = {
+                name: document.getElementById('name').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                bookingReason: document.getElementById('bookingReason').value.trim(),
+                requestedStart: toUTC(document.getElementById('requestedStart').value),
+                requestedEnd: toUTC(document.getElementById('requestedEnd').value)
+            };
+
+            // Validate dates
+            const startDate = new Date(formData.requestedStart);
+            const endDate = new Date(formData.requestedEnd);
+
+            if (endDate <= startDate) {
+                setLoading(false);
+                showAlert('End time must be after start time', 'error');
+                return;
+            }
+
+            try {
+                // Submit to webhook
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+
+                setLoading(false);
+
+                // Handle response
+                if (result.status === 'accepted') {
+                    showAlert(`✅ Booking confirmed! Your session is scheduled for ${new Date(result.slot.start).toLocaleString()}. Check your email for confirmation with calendar invite.`, 'success');
+                    form.reset();
+                } else if (result.status === 'pending') {
+                    showAlert(`⏳ Booking request submitted! Your request is pending provider review. You will receive an email once it's approved.`, 'warning');
+                    form.reset();
+                } else if (result.status === 'unavailable') {
+                    showAlert(`❌ ${result.message || 'The requested time slot is not available. Please choose a different time.'}`, 'error');
+                } else if (result.status === 'error') {
+                    showAlert(`❌ ${result.message || 'An error occurred. Please try again.'}`, 'error');
+                } else {
+                    showAlert('Unexpected response from server. Please contact support.', 'error');
+                }
+
+            } catch (error) {
+                setLoading(false);
+                console.error('Booking error:', error);
+                showAlert('Failed to submit booking. Please check your connection and try again.', 'error');
+            }
+        });
+
+        // Form validation feedback
+        const inputs = form.querySelectorAll('input, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('invalid', function(e) {
+                e.preventDefault();
+                this.style.borderColor = '#fc8181';
+            });
+
+            input.addEventListener('input', function() {
+                if (this.checkValidity()) {
+                    this.style.borderColor = '#e2e8f0';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
