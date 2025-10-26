@@ -79,95 +79,6 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false
-          },
-          "string": [
-            {
-              "value1": "={{$json.status}}",
-              "operation": "equal",
-              "value2": "accepted"
-            }
-          ]
-        }
-      },
-      "name": "Is Accepted",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        -300,
-        -160
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false
-          },
-          "string": [
-            {
-              "value1": "={{$json.status}}",
-              "operation": "equal",
-              "value2": "pending"
-            }
-          ]
-        }
-      },
-      "name": "Needs Review",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        -300,
-        160
-      ]
-    },
-    {
-      "parameters": {
-        "fromEmail": "no-reply@booking.local",
-        "toEmail": "={{$json.clientEmail.to}}",
-        "subject": "={{$json.clientEmail.subject}}",
-        "text": "={{$json.clientEmail.text}}",
-        "smtpApi": "smtp",
-        "smtpHost": "={{$env[\"SMTP_HOST\"]}}",
-        "smtpPort": "={{$env[\"SMTP_PORT\"]}}",
-        "smtpSsl": false,
-        "attachments": [
-          {
-            "binaryPropertyName": "ics"
-          }
-        ]
-      },
-      "name": "Send Client Confirmation",
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2,
-      "position": [
-        -60,
-        -200
-      ]
-    },
-    {
-      "parameters": {
-        "fromEmail": "no-reply@booking.local",
-        "toEmail": "={{$json.providerEmail.to}}",
-        "subject": "={{$json.providerEmail.subject}}",
-        "text": "={{$json.providerEmail.text}}",
-        "smtpApi": "smtp",
-        "smtpHost": "={{$env[\"SMTP_HOST\"]}}",
-        "smtpPort": "={{$env[\"SMTP_PORT\"]}}",
-        "smtpSsl": false
-      },
-      "name": "Send Provider Alert",
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2,
-      "position": [
-        -60,
-        200
-      ]
-    },
-    {
-      "parameters": {
         "respondWith": "json",
         "responseBody": "={{$json}}",
         "options": {
@@ -211,42 +122,6 @@
         [
           {
             "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Is Accepted",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Needs Review",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Is Accepted": {
-      "main": [
-        [
-          {
-            "node": "Send Client Confirmation",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Needs Review": {
-      "main": [
-        [
-          {
-            "node": "Send Provider Alert",
             "type": "main",
             "index": 0
           }
